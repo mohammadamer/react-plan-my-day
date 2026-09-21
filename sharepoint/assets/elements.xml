@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Elements xmlns="http://schemas.microsoft.com/sharepoint/">
+    <CustomAction
+        Title="PlanMyDay"
+        Location="ClientSideExtension.ApplicationCustomizer"
+        ClientSideComponentId="c7395715-2e26-4f19-952b-8bcb120dc19c"
+        ClientSideComponentProperties="{&quot;testMessage&quot;:&quot;Test message&quot;}">
+    </CustomAction>
+</Elements>

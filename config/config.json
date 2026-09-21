@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "plan-my-day-application-customizer": {
+      "components": [
+        {
+          "entrypoint": "./lib/extensions/planMyDay/PlanMyDayApplicationCustomizer.js",
+          "manifest": "./src/extensions/planMyDay/PlanMyDayApplicationCustomizer.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "PlanMyDayApplicationCustomizerStrings": "lib/extensions/planMyDay/loc/{locale}.js"
+  }
+}
