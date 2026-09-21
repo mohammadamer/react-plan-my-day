@@ -1,0 +1,20 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "useGulp": false,
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.14.0",
+    "sdksVersions": {},
+    "version": "1.22.2",
+    "libraryName": "react-plan-my-day",
+    "libraryId": "850fe38e-a362-48dd-8f7b-e3f82a7b2aa7",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "react-plan-my-day",
+    "solutionShortDescription": "react-plan-my-day description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "extension",
+    "extensionType": "ApplicationCustomizer"
+  }
+}
