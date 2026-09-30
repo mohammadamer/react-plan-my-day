@@ -10,5 +10,10 @@
     "**/lib-amd": true,
     "src/**/*.scss.ts": true
   },
-  "typescript.tsdk": ".\\node_modules\\typescript\\lib"
+  "typescript.tsdk": ".\\node_modules\\typescript\\lib",
+  "chat.tools.terminal.autoApprove": {
+    "npm install": true,
+    "npx tsc": true,
+    "npx heft": true
+  }
 }
