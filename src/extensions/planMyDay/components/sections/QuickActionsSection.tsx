@@ -22,16 +22,17 @@ export interface IQuickActionsSectionProps {
 
 export const QuickActionsSection: React.FC<IQuickActionsSectionProps> = ({ nextMeeting, nextTask, onMarkTaskComplete, busyTaskId }) => {
   const styles = useStyles();
+  const canJoinMeeting = nextMeeting?.joinUrl && nextMeeting.joinUrl.trim().length > 0;
   return (
     <div className={styles.actions}>
       <Button
         appearance="primary"
         icon={<Video16Regular />}
-        disabled={!nextMeeting}
-        as={nextMeeting ? 'a' : 'button'}
-        href={nextMeeting?.joinUrl}
-        target={nextMeeting ? '_blank' : undefined}
-        rel={nextMeeting ? 'noopener noreferrer' : undefined}
+        disabled={!canJoinMeeting}
+        as={canJoinMeeting ? 'a' : 'button'}
+        href={canJoinMeeting ? nextMeeting?.joinUrl : undefined}
+        target={canJoinMeeting ? '_blank' : undefined}
+        rel={canJoinMeeting ? 'noopener noreferrer' : undefined}
       >
         {nextMeeting ? strings.QuickActionJoinNextMeeting : strings.QuickActionNoMeeting}
       </Button>

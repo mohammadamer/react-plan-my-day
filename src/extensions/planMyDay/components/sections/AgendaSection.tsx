@@ -26,7 +26,7 @@ export const AgendaSection: React.FC<IAgendaSectionProps> = ({ meetings }) => {
                 {formatTime(meeting.start)} &ndash; {formatTime(meeting.end)}
               </Caption1>
             </div>
-            {meeting.joinUrl && (
+            {meeting.joinUrl?.trim() && (
               <Button
                 size="small"
                 appearance="secondary"
