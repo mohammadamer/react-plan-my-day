@@ -22,6 +22,8 @@ interface IGraphEvent {
   end: IGraphDateTimeZone;
   isAllDay: boolean;
   onlineMeeting?: { joinUrl?: string };
+  onlineMeetingUrl?: string;
+  webLink?: string;
 }
 
 interface IGraphPlannerTask {
@@ -45,6 +47,20 @@ async function getDisplayName(client: MSGraphClientV3): Promise<string> {
   return me.displayName;
 }
 
+function normalizeExternalUrl(value?: string): string | undefined {
+  const trimmed: string | undefined = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return /^https?:\/\//i.test(trimmed) ? trimmed : undefined;
+}
+
+function resolveMeetingJoinUrl(event: IGraphEvent): string | undefined {
+  return normalizeExternalUrl(event.onlineMeeting?.joinUrl)
+    || normalizeExternalUrl(event.onlineMeetingUrl)
+    || normalizeExternalUrl(event.webLink);
+}
+
 async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
   const now: Date = new Date();
   const midnight: Date = new Date(now);
@@ -57,7 +73,7 @@ async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
       startDateTime: now.toISOString(),
       endDateTime: midnight.toISOString()
     })
-    .select('id,subject,start,end,isAllDay,onlineMeeting')
+    .select('id,subject,start,end,isAllDay,onlineMeeting,onlineMeetingUrl,webLink')
     .orderby('start/dateTime')
     .top(AGENDA_MAX)
     .get();
@@ -69,7 +85,7 @@ async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
       subject: event.subject,
       start: new Date(`${event.start.dateTime}Z`),
       end: new Date(`${event.end.dateTime}Z`),
-      joinUrl: event.onlineMeeting?.joinUrl,
+      joinUrl: resolveMeetingJoinUrl(event),
       isAllDay: event.isAllDay
     }));
 }
