@@ -34,6 +34,11 @@ interface IGraphPlannerTask {
   planId: string;
 }
 
+interface IGraphCollectionResponse<T> {
+  value: T[];
+  '@odata.nextLink'?: string;
+}
+
 interface IGraphMessage {
   id: string;
   subject: string;
@@ -59,6 +64,14 @@ function resolveMeetingJoinUrl(event: IGraphEvent): string | undefined {
   return normalizeExternalUrl(event.onlineMeeting?.joinUrl)
     || normalizeExternalUrl(event.onlineMeetingUrl)
     || normalizeExternalUrl(event.webLink);
+}
+
+function toGraphApiPath(nextLink: string): string {
+  if (/^https?:\/\//i.test(nextLink)) {
+    const parsed: URL = new URL(nextLink);
+    return `${parsed.pathname}${parsed.search}`;
+  }
+  return nextLink;
 }
 
 async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
@@ -94,10 +107,18 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
   const endOfToday: Date = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  const response: { value: IGraphPlannerTask[] } = await client.api('/me/planner/tasks').get();
+  const allTasks: IGraphPlannerTask[] = [];
+  let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,percentComplete,planId&$top=100';
 
-  const dueOrOverdue: IGraphPlannerTask[] = response.value
+  while (nextLink) {
+    const page: IGraphCollectionResponse<IGraphPlannerTask> = await client.api(toGraphApiPath(nextLink)).get();
+    allTasks.push(...page.value);
+    nextLink = page['@odata.nextLink'];
+  }
+
+  const dueOrOverdue: IGraphPlannerTask[] = allTasks
     .filter(task => task.percentComplete < 100 && task.dueDateTime && new Date(task.dueDateTime) <= endOfToday)
+    .sort((left, right) => new Date(left.dueDateTime as string).getTime() - new Date(right.dueDateTime as string).getTime())
     .slice(0, TASKS_MAX);
 
   const planTitleCache: Map<string, string> = new Map<string, string>();
