@@ -74,6 +74,14 @@ function toGraphApiPath(nextLink: string): string {
   return nextLink;
 }
 
+function parseGraphDate(dateValue?: string): Date | undefined {
+  if (!dateValue) {
+    return undefined;
+  }
+  const parsed: Date = new Date(dateValue);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
   const now: Date = new Date();
   const midnight: Date = new Date(now);
@@ -116,14 +124,40 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
     nextLink = page['@odata.nextLink'];
   }
 
-  const dueOrOverdue: IGraphPlannerTask[] = allTasks
-    .filter(task => task.percentComplete < 100 && task.dueDateTime && new Date(task.dueDateTime) <= endOfToday)
-    .sort((left, right) => new Date(left.dueDateTime as string).getTime() - new Date(right.dueDateTime as string).getTime())
+  const openTasks: IGraphPlannerTask[] = allTasks.filter(task => (task.percentComplete ?? 0) < 100);
+
+  const dueOrOverdue: IGraphPlannerTask[] = openTasks
+    .filter(task => {
+      const dueDate: Date | undefined = parseGraphDate(task.dueDateTime);
+      return Boolean(dueDate && dueDate.getTime() <= endOfToday.getTime());
+    })
+    .sort((left, right) => {
+      const leftDue: number = parseGraphDate(left.dueDateTime)?.getTime() || Number.MAX_SAFE_INTEGER;
+      const rightDue: number = parseGraphDate(right.dueDateTime)?.getTime() || Number.MAX_SAFE_INTEGER;
+      return leftDue - rightDue;
+    });
+
+  const selectedTasks: IGraphPlannerTask[] = (dueOrOverdue.length > 0
+    ? dueOrOverdue
+    : openTasks.sort((left, right) => {
+      const leftDue: Date | undefined = parseGraphDate(left.dueDateTime);
+      const rightDue: Date | undefined = parseGraphDate(right.dueDateTime);
+      if (leftDue && rightDue) {
+        return leftDue.getTime() - rightDue.getTime();
+      }
+      if (leftDue) {
+        return -1;
+      }
+      if (rightDue) {
+        return 1;
+      }
+      return left.title.localeCompare(right.title);
+    }))
     .slice(0, TASKS_MAX);
 
   const planTitleCache: Map<string, string> = new Map<string, string>();
   const tasks: IPlannerTask[] = [];
-  for (const task of dueOrOverdue) {
+  for (const task of selectedTasks) {
     if (!planTitleCache.has(task.planId)) {
       try {
         const plan: { title: string } = await client.api(`/planner/plans/${task.planId}`).select('title').get();
@@ -135,9 +169,9 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
     tasks.push({
       id: task.id,
       title: task.title,
-      dueDateTime: task.dueDateTime ? new Date(task.dueDateTime) : undefined,
+      dueDateTime: parseGraphDate(task.dueDateTime),
       planTitle: planTitleCache.get(task.planId) || '',
-      percentComplete: task.percentComplete
+      percentComplete: task.percentComplete ?? 0
     });
   }
   return tasks;
