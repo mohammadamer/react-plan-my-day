@@ -39,6 +39,22 @@ interface IGraphCollectionResponse<T> {
   '@odata.nextLink'?: string;
 }
 
+interface IGraphTodoList {
+  id: string;
+  displayName: string;
+}
+
+interface IGraphTodoDateTime {
+  dateTime: string;
+}
+
+interface IGraphTodoTask {
+  id: string;
+  title: string;
+  status?: string;
+  dueDateTime?: IGraphTodoDateTime;
+}
+
 interface IGraphMessage {
   id: string;
   subject: string;
@@ -82,6 +98,40 @@ function parseGraphDate(dateValue?: string): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
+const TODO_ID_PREFIX: string = 'todo:';
+
+function createTodoTaskId(listId: string, taskId: string): string {
+  return `${TODO_ID_PREFIX}${encodeURIComponent(listId)}:${encodeURIComponent(taskId)}`;
+}
+
+function parseTodoTaskId(taskId: string): { listId: string; taskId: string } | undefined {
+  if (!taskId.startsWith(TODO_ID_PREFIX)) {
+    return undefined;
+  }
+  const composite: string = taskId.substring(TODO_ID_PREFIX.length);
+  const separatorIndex: number = composite.indexOf(':');
+  if (separatorIndex < 0) {
+    return undefined;
+  }
+  const encodedListId: string = composite.substring(0, separatorIndex);
+  const encodedTaskId: string = composite.substring(separatorIndex + 1);
+  if (!encodedListId || !encodedTaskId) {
+    return undefined;
+  }
+  return { listId: decodeURIComponent(encodedListId), taskId: decodeURIComponent(encodedTaskId) };
+}
+
+function sortTasks(tasks: IPlannerTask[]): IPlannerTask[] {
+  return tasks.sort((left, right) => {
+    const leftDueTime: number = left.dueDateTime?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const rightDueTime: number = right.dueDateTime?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    if (leftDueTime !== rightDueTime) {
+      return leftDueTime - rightDueTime;
+    }
+    return left.title.localeCompare(right.title);
+  });
+}
+
 async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
   const now: Date = new Date();
   const midnight: Date = new Date(now);
@@ -115,49 +165,18 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
   const endOfToday: Date = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  const allTasks: IGraphPlannerTask[] = [];
+  const plannerTasks: IGraphPlannerTask[] = [];
   let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,percentComplete,planId&$top=100';
 
   while (nextLink) {
     const page: IGraphCollectionResponse<IGraphPlannerTask> = await client.api(toGraphApiPath(nextLink)).get();
-    allTasks.push(...page.value);
+    plannerTasks.push(...page.value);
     nextLink = page['@odata.nextLink'];
   }
 
-  const openTasks: IGraphPlannerTask[] = allTasks.filter(task => (task.percentComplete ?? 0) < 100);
-
-  const dueOrOverdue: IGraphPlannerTask[] = openTasks
-    .filter(task => {
-      const dueDate: Date | undefined = parseGraphDate(task.dueDateTime);
-      return Boolean(dueDate && dueDate.getTime() <= endOfToday.getTime());
-    })
-    .sort((left, right) => {
-      const leftDue: number = parseGraphDate(left.dueDateTime)?.getTime() || Number.MAX_SAFE_INTEGER;
-      const rightDue: number = parseGraphDate(right.dueDateTime)?.getTime() || Number.MAX_SAFE_INTEGER;
-      return leftDue - rightDue;
-    });
-
-  const selectedTasks: IGraphPlannerTask[] = (dueOrOverdue.length > 0
-    ? dueOrOverdue
-    : openTasks.sort((left, right) => {
-      const leftDue: Date | undefined = parseGraphDate(left.dueDateTime);
-      const rightDue: Date | undefined = parseGraphDate(right.dueDateTime);
-      if (leftDue && rightDue) {
-        return leftDue.getTime() - rightDue.getTime();
-      }
-      if (leftDue) {
-        return -1;
-      }
-      if (rightDue) {
-        return 1;
-      }
-      return left.title.localeCompare(right.title);
-    }))
-    .slice(0, TASKS_MAX);
-
   const planTitleCache: Map<string, string> = new Map<string, string>();
-  const tasks: IPlannerTask[] = [];
-  for (const task of selectedTasks) {
+  const plannerOpenTasks: IPlannerTask[] = [];
+  for (const task of plannerTasks.filter(value => (value.percentComplete ?? 0) < 100)) {
     if (!planTitleCache.has(task.planId)) {
       try {
         const plan: { title: string } = await client.api(`/planner/plans/${task.planId}`).select('title').get();
@@ -166,7 +185,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
         planTitleCache.set(task.planId, '');
       }
     }
-    tasks.push({
+    plannerOpenTasks.push({
       id: task.id,
       title: task.title,
       dueDateTime: parseGraphDate(task.dueDateTime),
@@ -174,7 +193,45 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
       percentComplete: task.percentComplete ?? 0
     });
   }
-  return tasks;
+
+  const todoOpenTasks: IPlannerTask[] = [];
+  const todoLists: IGraphTodoList[] = [];
+  let todoListsNextLink: string | undefined = '/me/todo/lists?$select=id,displayName&$top=100';
+  while (todoListsNextLink) {
+    const todoListsPage: IGraphCollectionResponse<IGraphTodoList> = await client.api(toGraphApiPath(todoListsNextLink)).get();
+    todoLists.push(...todoListsPage.value);
+    todoListsNextLink = todoListsPage['@odata.nextLink'];
+  }
+  const todoListResults: Array<{ listId: string; listTitle: string; task: IGraphTodoTask }> = [];
+
+  await Promise.all(todoLists.map(async (list: IGraphTodoList) => {
+    let listNextLink: string | undefined = `/me/todo/lists/${encodeURIComponent(list.id)}/tasks?$select=id,title,status,dueDateTime&$top=100`;
+    while (listNextLink) {
+      const listPage: IGraphCollectionResponse<IGraphTodoTask> = await client.api(toGraphApiPath(listNextLink)).get();
+      listPage.value
+        .filter(task => (task.status || '').toLowerCase() !== 'completed')
+        .forEach(task => todoListResults.push({ listId: list.id, listTitle: list.displayName, task }));
+      listNextLink = listPage['@odata.nextLink'];
+    }
+  }));
+
+  todoListResults.forEach(({ listId, listTitle, task }) => {
+    todoOpenTasks.push({
+      id: createTodoTaskId(listId, task.id),
+      title: task.title,
+      dueDateTime: parseGraphDate(task.dueDateTime?.dateTime),
+      planTitle: listTitle,
+      percentComplete: 0
+    });
+  });
+
+  const openTasks: IPlannerTask[] = [...plannerOpenTasks, ...todoOpenTasks];
+  const dueOrOverdue: IPlannerTask[] = sortTasks(
+    openTasks.filter(task => Boolean(task.dueDateTime && task.dueDateTime.getTime() <= endOfToday.getTime()))
+  );
+
+  const selectedTasks: IPlannerTask[] = sortTasks(dueOrOverdue.length > 0 ? dueOrOverdue : openTasks).slice(0, TASKS_MAX);
+  return selectedTasks;
 }
 
 async function getImportantEmails(client: MSGraphClientV3): Promise<IImportantEmail[]> {
@@ -276,6 +333,13 @@ export async function loadPlanMyDayData(context: ApplicationCustomizerContext): 
 
 export async function markTaskComplete(context: ApplicationCustomizerContext, taskId: string): Promise<void> {
   const client: MSGraphClientV3 = await getGraphClient(context);
+  const todoTask: { listId: string; taskId: string } | undefined = parseTodoTaskId(taskId);
+  if (todoTask) {
+    await client
+      .api(`/me/todo/lists/${encodeURIComponent(todoTask.listId)}/tasks/${encodeURIComponent(todoTask.taskId)}`)
+      .patch({ status: 'completed' });
+    return;
+  }
   const task: { '@odata.etag': string } = await client.api(`/planner/tasks/${taskId}`).select('id').get();
   await client
     .api(`/planner/tasks/${taskId}`)
