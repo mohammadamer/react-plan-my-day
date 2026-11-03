@@ -101,6 +101,8 @@ function parseGraphDate(dateValue?: string): Date | undefined {
 }
 
 const TODO_ID_PREFIX: string = 'todo:';
+const PLANNER_TASKS_WEB_APP_URL: string = 'https://tasks.office.com';
+const TODO_WEB_APP_URL: string = 'https://to-do.office.com/tasks/';
 
 function createTodoTaskId(listId: string, taskId: string): string {
   return `${TODO_ID_PREFIX}${encodeURIComponent(listId)}:${encodeURIComponent(taskId)}`;
@@ -132,6 +134,14 @@ function sortTasks(tasks: IPlannerTask[]): IPlannerTask[] {
     }
     return left.title.localeCompare(right.title);
   });
+}
+
+function getPlannerTaskWebUrl(taskId: string, webUrl?: string): string {
+  return normalizeExternalUrl(webUrl) || `${PLANNER_TASKS_WEB_APP_URL}/?taskId=${encodeURIComponent(taskId)}`;
+}
+
+function getTodoTaskWebUrl(taskId: string, webLink?: string): string {
+  return normalizeExternalUrl(webLink) || `${TODO_WEB_APP_URL}id/${encodeURIComponent(taskId)}`;
 }
 
 async function getTodayAgenda(client: MSGraphClientV3): Promise<IMeeting[]> {
@@ -168,7 +178,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
   endOfToday.setHours(23, 59, 59, 999);
 
   const plannerTasks: IGraphPlannerTask[] = [];
-  let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,percentComplete,planId&$top=100';
+  let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,webUrl,percentComplete,planId&$top=100';
 
   while (nextLink) {
     const page: IGraphCollectionResponse<IGraphPlannerTask> = await client.api(toGraphApiPath(nextLink)).get();
@@ -191,7 +201,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
       id: task.id,
       title: task.title,
       dueDateTime: parseGraphDate(task.dueDateTime),
-      webUrl: normalizeExternalUrl(task.webUrl),
+      webUrl: getPlannerTaskWebUrl(task.id, task.webUrl),
       planTitle: planTitleCache.get(task.planId) || '',
       percentComplete: task.percentComplete ?? 0
     });
@@ -224,7 +234,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
         id: createTodoTaskId(listId, task.id),
         title: task.title,
         dueDateTime: parseGraphDate(task.dueDateTime?.dateTime),
-        webUrl: normalizeExternalUrl(task.webLink),
+        webUrl: getTodoTaskWebUrl(task.id, task.webLink),
         planTitle: listTitle,
         percentComplete: 0
       });
