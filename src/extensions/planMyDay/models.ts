@@ -11,6 +11,7 @@ export interface IPlannerTask {
   id: string;
   title: string;
   dueDateTime?: Date;
+  webUrl?: string;
   planTitle: string;
   percentComplete: number;
 }

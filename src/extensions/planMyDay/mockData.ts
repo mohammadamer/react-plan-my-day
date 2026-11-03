@@ -26,8 +26,8 @@ export function getMockData(): IPlanMyDayData {
       }
     ],
     tasks: [
-      { id: 'mock-task-1', title: 'Finish Q3 budget review', dueDateTime: now, planTitle: 'Finance', percentComplete: 0 },
-      { id: 'mock-task-2', title: 'Review PR for extension', dueDateTime: inMinutes(-120), planTitle: 'Engineering', percentComplete: 50 }
+      { id: 'mock-task-1', title: 'Finish Q3 budget review', dueDateTime: now, webUrl: 'https://to-do.office.com/tasks/', planTitle: 'Finance', percentComplete: 0 },
+      { id: 'mock-task-2', title: 'Review PR for extension', dueDateTime: inMinutes(-120), webUrl: 'https://to-do.office.com/tasks/', planTitle: 'Engineering', percentComplete: 50 }
     ],
     emails: [
       { id: 'mock-email-1', subject: 'Action needed: contract renewal', from: 'Jane Cooper', receivedDateTime: inMinutes(-60), webLink: 'https://outlook.office.com/mail' },

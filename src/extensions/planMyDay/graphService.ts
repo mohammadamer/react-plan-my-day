@@ -30,6 +30,7 @@ interface IGraphPlannerTask {
   id: string;
   title: string;
   dueDateTime?: string;
+  webUrl?: string;
   percentComplete: number;
   planId: string;
 }
@@ -53,6 +54,7 @@ interface IGraphTodoTask {
   title: string;
   status?: string;
   dueDateTime?: IGraphTodoDateTime;
+  webLink?: string;
 }
 
 interface IGraphMessage {
@@ -189,6 +191,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
       id: task.id,
       title: task.title,
       dueDateTime: parseGraphDate(task.dueDateTime),
+      webUrl: normalizeExternalUrl(task.webUrl),
       planTitle: planTitleCache.get(task.planId) || '',
       percentComplete: task.percentComplete ?? 0
     });
@@ -221,6 +224,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
         id: createTodoTaskId(listId, task.id),
         title: task.title,
         dueDateTime: parseGraphDate(task.dueDateTime?.dateTime),
+        webUrl: normalizeExternalUrl(task.webLink),
         planTitle: listTitle,
         percentComplete: 0
       });

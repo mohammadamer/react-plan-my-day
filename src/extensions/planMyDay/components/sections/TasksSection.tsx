@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Button, Caption1, Text } from '@fluentui/react-components';
+import { Button, Caption1, Link, Text } from '@fluentui/react-components';
 import { CheckmarkCircle16Regular, TaskListSquareLtr20Regular } from '@fluentui/react-icons';
 import * as strings from 'PlanMyDayApplicationCustomizerStrings';
 import { IPlannerTask } from '../../models';
@@ -21,7 +21,19 @@ export const TasksSection: React.FC<ITasksSectionProps> = ({ tasks, onMarkComple
         {tasks.map(task => (
           <div key={task.id} className={styles.row}>
             <div className={styles.rowMain}>
-              <Text weight="semibold" className={styles.truncate} title={task.title}>{task.title}</Text>
+              {task.webUrl ? (
+                <Link
+                  href={task.webUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.truncate}
+                  title={task.title}
+                >
+                  {task.title}
+                </Link>
+              ) : (
+                <Text weight="semibold" className={styles.truncate} title={task.title}>{task.title}</Text>
+              )}
               {task.planTitle && <Caption1 className={styles.meta}>{task.planTitle}</Caption1>}
             </div>
             <Button
