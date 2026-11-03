@@ -373,6 +373,44 @@ export interface CopilotSearchHit {
   };
 }
 
+interface IGraphSearchResource {
+  webUrl?: string;
+  name?: string;
+  title?: string;
+}
+
+interface IGraphSearchHit {
+  summary?: string;
+  resource?: IGraphSearchResource;
+}
+
+interface IGraphSearchHitsContainer {
+  total?: number;
+  hits?: IGraphSearchHit[];
+}
+
+interface IGraphSearchResponse {
+  value?: Array<{
+    hitsContainers?: IGraphSearchHitsContainer[];
+  }>;
+}
+
+function mapGraphSearchToCopilot(response: IGraphSearchResponse): CopilotSearchResponse {
+  const container: IGraphSearchHitsContainer | undefined = response.value?.[0]?.hitsContainers?.[0];
+  const hits: IGraphSearchHit[] = container?.hits || [];
+  return {
+    totalCount: container?.total ?? hits.length,
+    searchHits: hits.map(hit => ({
+      webUrl: hit.resource?.webUrl,
+      preview: hit.summary,
+      resourceType: 'searchResult',
+      resourceMetadata: {
+        title: hit.resource?.name || hit.resource?.title
+      }
+    }))
+  };
+}
+
 
 export async function askCopilot(context: ApplicationCustomizerContext, prompt: string): Promise<CopilotSearchResponse> {
   const client: MSGraphClientV3 = await getGraphClient(context);
@@ -380,15 +418,12 @@ export async function askCopilot(context: ApplicationCustomizerContext, prompt: 
   try {
     console.log("[askCopilot] Searching for:", prompt);
 
-    // Build the request body
+    const normalizedPrompt: string = prompt.trim();
+
+    // Build broad request body (no datasource restriction)
     const requestBody = {
-      query: prompt.trim(),
-      pageSize: 10,
-      dataSources: {
-        oneDrive: {
-          resourceMetadataNames: ["title", "author"],
-        },
-      },
+      query: normalizedPrompt,
+      pageSize: 10
     };
 
     // POST to /beta/copilot/search
@@ -402,9 +437,30 @@ export async function askCopilot(context: ApplicationCustomizerContext, prompt: 
       "[askCopilot] Search completed. Total results:",
       response,
     );
-    console.log("[askCopilot] Response:", response);
+    const hasHits: boolean = Array.isArray(response.searchHits) && response.searchHits.length > 0;
+    if (hasHits) {
+      console.log("[askCopilot] Response:", response);
+      return response;
+    }
 
-    return response;
+    console.log('[askCopilot] Copilot search returned no hits, falling back to Graph Search API.');
+    const graphSearchResponse: IGraphSearchResponse = await client
+      .api('/search/query')
+      .version('v1.0')
+      .post({
+        requests: [
+          {
+            entityTypes: ['driveItem', 'listItem', 'site'],
+            query: { queryString: normalizedPrompt },
+            from: 0,
+            size: 10
+          }
+        ]
+      });
+
+    const fallbackResponse: CopilotSearchResponse = mapGraphSearchToCopilot(graphSearchResponse);
+    console.log('[askCopilot] Fallback search response:', fallbackResponse);
+    return fallbackResponse;
   } catch (error) {
     console.error("[askCopilot] Error performing search:", error);
     throw new Error(
