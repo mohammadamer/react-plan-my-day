@@ -30,7 +30,6 @@ interface IGraphPlannerTask {
   id: string;
   title: string;
   dueDateTime?: string;
-  webUrl?: string;
   percentComplete: number;
   planId: string;
 }
@@ -136,8 +135,8 @@ function sortTasks(tasks: IPlannerTask[]): IPlannerTask[] {
   });
 }
 
-function getPlannerTaskWebUrl(taskId: string, webUrl?: string): string {
-  return normalizeExternalUrl(webUrl) || `${PLANNER_TASKS_WEB_APP_URL}/?taskId=${encodeURIComponent(taskId)}`;
+function getPlannerTaskWebUrl(taskId: string): string {
+  return `${PLANNER_TASKS_WEB_APP_URL}/?taskId=${encodeURIComponent(taskId)}`;
 }
 
 function getTodoTaskWebUrl(taskId: string, webLink?: string): string {
@@ -178,7 +177,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
   endOfToday.setHours(23, 59, 59, 999);
 
   const plannerTasks: IGraphPlannerTask[] = [];
-  let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,webUrl,percentComplete,planId&$top=100';
+  let nextLink: string | undefined = '/me/planner/tasks?$select=id,title,dueDateTime,percentComplete,planId&$top=100';
 
   while (nextLink) {
     const page: IGraphCollectionResponse<IGraphPlannerTask> = await client.api(toGraphApiPath(nextLink)).get();
@@ -201,7 +200,7 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
       id: task.id,
       title: task.title,
       dueDateTime: parseGraphDate(task.dueDateTime),
-      webUrl: getPlannerTaskWebUrl(task.id, task.webUrl),
+      webUrl: getPlannerTaskWebUrl(task.id),
       planTitle: planTitleCache.get(task.planId) || '',
       percentComplete: task.percentComplete ?? 0
     });
