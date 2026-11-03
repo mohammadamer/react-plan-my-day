@@ -195,35 +195,39 @@ async function getDueTasks(client: MSGraphClientV3): Promise<IPlannerTask[]> {
   }
 
   const todoOpenTasks: IPlannerTask[] = [];
-  const todoLists: IGraphTodoList[] = [];
-  let todoListsNextLink: string | undefined = '/me/todo/lists?$select=id,displayName&$top=100';
-  while (todoListsNextLink) {
-    const todoListsPage: IGraphCollectionResponse<IGraphTodoList> = await client.api(toGraphApiPath(todoListsNextLink)).get();
-    todoLists.push(...todoListsPage.value);
-    todoListsNextLink = todoListsPage['@odata.nextLink'];
-  }
-  const todoListResults: Array<{ listId: string; listTitle: string; task: IGraphTodoTask }> = [];
-
-  await Promise.all(todoLists.map(async (list: IGraphTodoList) => {
-    let listNextLink: string | undefined = `/me/todo/lists/${encodeURIComponent(list.id)}/tasks?$select=id,title,status,dueDateTime&$top=100`;
-    while (listNextLink) {
-      const listPage: IGraphCollectionResponse<IGraphTodoTask> = await client.api(toGraphApiPath(listNextLink)).get();
-      listPage.value
-        .filter(task => (task.status || '').toLowerCase() !== 'completed')
-        .forEach(task => todoListResults.push({ listId: list.id, listTitle: list.displayName, task }));
-      listNextLink = listPage['@odata.nextLink'];
+  try {
+    const todoLists: IGraphTodoList[] = [];
+    let todoListsNextLink: string | undefined = '/me/todo/lists';
+    while (todoListsNextLink) {
+      const todoListsPage: IGraphCollectionResponse<IGraphTodoList> = await client.api(toGraphApiPath(todoListsNextLink)).get();
+      todoLists.push(...todoListsPage.value);
+      todoListsNextLink = todoListsPage['@odata.nextLink'];
     }
-  }));
+    const todoListResults: Array<{ listId: string; listTitle: string; task: IGraphTodoTask }> = [];
 
-  todoListResults.forEach(({ listId, listTitle, task }) => {
-    todoOpenTasks.push({
-      id: createTodoTaskId(listId, task.id),
-      title: task.title,
-      dueDateTime: parseGraphDate(task.dueDateTime?.dateTime),
-      planTitle: listTitle,
-      percentComplete: 0
+    await Promise.all(todoLists.map(async (list: IGraphTodoList) => {
+      let listNextLink: string | undefined = `/me/todo/lists/${encodeURIComponent(list.id)}/tasks`;
+      while (listNextLink) {
+        const listPage: IGraphCollectionResponse<IGraphTodoTask> = await client.api(toGraphApiPath(listNextLink)).get();
+        listPage.value
+          .filter(task => (task.status || '').toLowerCase() !== 'completed')
+          .forEach(task => todoListResults.push({ listId: list.id, listTitle: list.displayName, task }));
+        listNextLink = listPage['@odata.nextLink'];
+      }
+    }));
+
+    todoListResults.forEach(({ listId, listTitle, task }) => {
+      todoOpenTasks.push({
+        id: createTodoTaskId(listId, task.id),
+        title: task.title,
+        dueDateTime: parseGraphDate(task.dueDateTime?.dateTime),
+        planTitle: listTitle,
+        percentComplete: 0
+      });
     });
-  });
+  } catch (error) {
+    console.warn('[PlanMyDay] To Do tasks unavailable, continuing with Planner tasks only.', error);
+  }
 
   const openTasks: IPlannerTask[] = [...plannerOpenTasks, ...todoOpenTasks];
   const dueOrOverdue: IPlannerTask[] = sortTasks(
