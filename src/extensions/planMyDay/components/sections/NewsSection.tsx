@@ -7,6 +7,12 @@ import { SectionCard } from './SectionCard';
 import { useListStyles } from './sectionStyles';
 
 const useStyles = makeStyles({
+  itemLink: {
+    display: 'block',
+    width: '100%',
+    textDecorationLine: 'none',
+    color: 'inherit'
+  },
   thumbnail: {
     width: '56px',
     height: '40px',
@@ -36,21 +42,21 @@ export const NewsSection: React.FC<INewsSectionProps> = ({ news }) => {
       <div className={styles.list}>
         {news.map(post => (
           <div key={post.id} className={styles.row}>
-            <div className={localStyles.item}>
-              {post.imageUrl && <img src={post.imageUrl} alt="" className={localStyles.thumbnail} />}
-              <div className={styles.rowMain}>
-                <Link
-                  href={post.webUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.truncate}
-                  title={post.title}
-                >
-                  {post.title}
-                </Link>
-                <Caption1 className={styles.meta}>{post.publishedDateTime.toLocaleDateString()}</Caption1>
+            <Link
+              href={post.webUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={localStyles.itemLink}
+              title={post.title}
+            >
+              <div className={localStyles.item}>
+                {post.imageUrl && <img src={post.imageUrl} alt="" className={localStyles.thumbnail} />}
+                <div className={styles.rowMain}>
+                  <Caption1 className={styles.truncate}>{post.title}</Caption1>
+                  <Caption1 className={styles.meta}>{post.publishedDateTime.toLocaleDateString()}</Caption1>
+                </div>
               </div>
-            </div>
+            </Link>
           </div>
         ))}
       </div>
